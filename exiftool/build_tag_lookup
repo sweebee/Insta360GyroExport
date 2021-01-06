@@ -1,0 +1,83 @@
+#!/usr/bin/perl -w
+#
+# Description:  Generate tag lookup for ExifTool writer
+#
+# Syntax:       build_tag_lookup [-p] [-v]
+#
+# Options:      -p  - preserve existing revision date in html files
+#               -v  - verbose mode
+#
+# Created:      12/31/04 - P. Harvey
+#
+use strict;
+
+print "Building tag lookup...\n";
+
+my $file = 'lib/Image/ExifTool/TagLookup.pm';
+my $podFile = 'lib/Image/ExifTool/TagNames.pod';
+my $htmldir = 'html';
+my $verbose;
+
+BEGIN {
+    # get exe directory (and change to forward slashes)
+    my $exeDir = ($0 =~ /(.*)[\\\/]/) ? $1 : '.';
+    # add lib directory at start of include path
+    unshift @INC, "$exeDir/lib";
+}
+
+require Image::ExifTool::BuildTagLookup;
+
+my $builder = new Image::ExifTool::BuildTagLookup;
+
+foreach (@ARGV) {
+    if ($_ eq '-p') {
+        $$builder{PRESERVE_DATE} = 1;
+        print("(preserving revision dates)\n");
+        next;
+    } elsif ($_ eq '-v') {
+        $verbose = 1;
+    } else {
+        die "Unknown option '$_'\n";
+    }
+}
+
+my $count = $builder->{COUNT};
+foreach (sort keys %$count) {
+    printf "%5d %s\n", $$count{$_}, $_;
+}
+
+if ($verbose) {
+    printf "%5d writable pseudo tags:", scalar(@{$$builder{WRITE_PSEUDO}});
+    my $len = 999;
+    foreach (sort @{$$builder{WRITE_PSEUDO}}) {
+        $len + length() > 78 and print("\n     "), $len = 5;
+        print ' ', $_;
+        $len += length() + 1;
+    }
+    print "\n";
+}
+
+if ($builder->WriteTagLookup($file)) {
+    print "Tag lookup built OK\n";
+} else {
+    die "Error building tag lookup\n";
+}
+
+if ($builder->WriteTagNames($podFile, $htmldir)) {
+    print "TagNames written OK\n";
+} else {
+    die "Error writing TagNames\n";
+}
+
+# check to see if too many files changed
+my $diff = $$count{'HTML files changed'};
+my $same = $$count{'HTML files unchanged'};
+if ($diff > $same) {
+    warn "WARNING: $diff HTML files changed!!!! <<<<<<<<<<<<<<<<<<<\n";
+} else {
+    printf "%5d HTML files changed\n", $diff;
+}
+
+exit(0);
+
+# end
